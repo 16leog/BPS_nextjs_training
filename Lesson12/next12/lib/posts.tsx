@@ -1,3 +1,10 @@
+import { compileMDX } from "next-mdx-remote/rsc";
+import rehypeAutolinkHeadings from "rehype-autolink-headings/lib";
+import rehypeHighlight from "rehype-highlight/lib";
+import rehypeSlug from "rehype-slug";
+import Video from "@/app/components/Video";
+import CustomImage from "@/app/components/CustomImage";
+
 type Filetree = {
   tree: [
     {
@@ -6,11 +13,11 @@ type Filetree = {
   ];
 };
 
-export async function getPostsByName(
+export async function getPostByName(
   fileName: string
 ): Promise<BlogPost | undefined> {
   const res = await fetch(
-    `https://raw.githubusercontent.com/16leog/blog_posts/main/${filename}`,
+    `https://raw.githubusercontent.com/16leog/blog_posts/main/${fileName}`,
     {
       headers: {
         Accept: "application/vnd.github+json",
@@ -25,6 +32,47 @@ export async function getPostsByName(
   const rawMDX = await res.text();
 
   if (rawMDX === "404: Not Found") return undefined;
+
+  const { frontmatter, content } = await compileMDX<{
+    title: string;
+    date: string;
+    tags: string[];
+  }>({
+    source: rawMDX,
+    components: {
+      Video,
+      CustomImage,
+    },
+    options: {
+      parseFrontmatter: true,
+      mdxOptions: {
+        rehypePlugins: [
+          rehypeHighlight,
+          rehypeSlug,
+          [
+            rehypeAutolinkHeadings,
+            {
+              behavior: "wrap",
+            },
+          ],
+        ],
+      },
+    },
+  });
+
+  const id = fileName.replace(/\.mdx$/, "");
+
+  const blogPostObj: BlogPost = {
+    meta: {
+      id,
+      title: frontmatter.title,
+      date: frontmatter.date,
+      tags: frontmatter.tags,
+    },
+    content,
+  };
+
+  return blogPostObj;
 }
 
 export async function getPostsMeta(): Promise<Meta[] | undefined> {
